@@ -1,0 +1,176 @@
+Skip to content
+Navigation Menu
+microsoft
+/
+graphrag
+
+Type / to search
+Code
+Issues
+104
+Pull requests
+28
+Discussions
+Actions
+Projects
+Security
+Insights
+Testing GraphRAG with other LLMs #321
+alexchaomander started this conversation in Ideas
+Testing GraphRAG with other LLMs
+#321
+@alexchaomander
+alexchaomander
+on Jul 3 · 3 comments · 1 reply
+Return to top
+
+alexchaomander
+on Jul 3
+Maintainer
+The team primarily built GraphRAG with the GPT4-family of models and current prompts have been tested to work well with GPT4-o.
+
+We'd love to see how GraphRAG works with open models like phi3, llama, mistral, etc.
+
+Share your ideas, experiments, and experiences here!
+
+Replies:3 comments · 1 reply
+
+pradhandebasish2046
+on Jul 3
+Yes I am also looking forward to see the performance with other models
+
+0 replies
+
+namin
+last month
+I got the Get Started guide working entirely locally on Apple Silicon.
+
+Setup
+Toolio
+I used https://github.com/OoriData/Toolio as my OpenAI-compatible server for text completions, because it uses Apple's MLX and supports JSON schemas.
+
+I started the server with:
+
+toolio_server --model=mlx-community/Hermes-2-Theta-Llama-3-8B-4bit
+I also used a model with a larger context to satisfy the community report of graphrag:
+
+toolio_server --model=mlx-community/Llama-3-8B-Instruct-1048k-4bit
+I changed the llm: api_base setting to http://127.0.0.1:8000/v1/.
+
+open-text-embeddings
+For embeddings, I used open-text-embeddings.
+
+I started the server with:
+
+PORT=8080 VERBOSE=1 MODEL=BAAI/bge-large-en python -m open.text.embeddings.server
+I changed the embeddings: llm: api_base setting to http://127.0.0.1:8080/v1/.
+
+With this, I was able to get the indexing. I think it took around 2 hours.
+
+I was also able to run the global and local search queries, after resolving some tweaks which I describe next.
+
+Issues
+Enhancement: JSON Schema defined informally instead of formally
+Toolio can work with JSON schemas and enforce them. I added the following schema:
+
+MAP_SYSTEM_JSON = """
+{
+  "type": "object",
+  "properties": {
+    "points": {
+      "type": "array",
+      "contains": {
+        "type": "object",
+        "properties": {
+          "description": { "type": "string" },
+          "score": { "type": "number" },
+        },
+        "required": ["description", "score"],
+      },
+      "minContains": 5,
+    },
+  },
+  "required": ["points"],
+}
+"""
+And then added a "schema" property set to that in the "response_format" map_llm_params in ./query/structured_search/global_search/search.py.
+
+I suspect whenever GraphRAG informally prompts for some JSON, the effectiveness with Toolio could be improved by passing the schema formally.
+
+Some bug with streaming=True
+I had some issue seeing any response when LLM generation used streaming=True, so I changed those in *_search/search.py to False.
+
+tiktoken and non-OpenAI embeddings
+Somehow, the open-text-embeddings server complains about the chunking using tiktoken, saying it expects a string not a list of numbers. Setting the token_encoder to None, and not using an encoder when None in chunk_text (in ./query/llm/text_utils.py) seems to have resolved the issue for me.
+
+def chunk_text(
+    text: str, max_tokens: int, token_encoder: tiktoken.Encoding | None = None
+):
+    """Chunk text by token length."""
+    if token_encoder is None:
+        tokens = text.split()
+    else:
+        tokens = token_encoder.encode(text)  # type: ignore
+    chunk_iterator = batched(iter(tokens), max_tokens)
+    yield from chunk_iterator
+Issue: special tokens within JSON generation
+I did run into an issue with the large context llama that special tokens appeared amidst the JSON causing decoding errors. I did a brutal cleanup as follows:
+
+                search_response = search_response.replace("<|start_header_id|>assistant<|end_header_id|>", "")
+                search_response = search_response.split('<|eot_id|>')[0]
+But that was also a shame, because I discarded all the alternate responses.
+
+What's next?
+I haven't evaluated how well the system work -- my first victory was to get it running!
+
+I might add a JSON schema for Toolio for each prompt that requires JSON generation.
+
+I am not sure whether there's anything to push upstream at the moment: all the issues I hit could probably be solved by improving the OpenAI-compatible servers.
+
+1 reply
+@streamside7
+streamside7
+last month
+What an awesome post! Thanks!
+
+
+xxWeiDG
+3 weeks ago
+It's work on chatglm4-9b-chat with xinference
+
+0 replies
+
+Add a comment
+Comment
+ 
+Add your comment here...
+ 
+Remember, contributions to this repository should follow its contributing guidelines, security policy, and code of conduct.
+Category
+💡
+Ideas
+Labels
+None yet
+5 participants
+@alexchaomander
+@namin
+@streamside7
+@pradhandebasish2046
+@xxWeiDG
+Notifications
+You’re not receiving notifications from this thread.
+Create issue from discussion
+The original post will be copied into a new issue, and the discussion will remain active.
+
+Footer
+© 2024 GitHub, Inc.
+Footer navigation
+Terms
+Privacy
+Security
+Status
+Docs
+Contact
+Manage cookies
+Do not share my personal information
+Testing GraphRAG with other LLMs · microsoft/graphrag · Discussion #321

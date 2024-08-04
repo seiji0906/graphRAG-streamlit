@@ -1,0 +1,1027 @@
+Custom Configuration Mode
+The primary configuration sections for Indexing Engine pipelines are described below. Each configuration section can be expressed in Python (for use in Python API mode) as well as YAML, but YAML is show here for brevity.
+
+Using custom configuration is an advanced use-case. Most users will want to use the Default Configuration instead.
+
+Indexing Engine Examples
+The examples directory contains several examples of how to use the indexing engine with custom configuration.
+
+Most examples include two different forms of running the pipeline, both are contained in the examples run.py
+
+Using mostly the Python API
+Using mostly the a pipeline configuration file
+To run an example:
+
+Run poetry shell to activate a virtual environment with the required dependencies.
+Run PYTHONPATH="$(pwd)" python examples/path_to_example/run.py from the root directory.
+For example to run the single_verb example, you would run the following commands:
+
+poetry shell
+
+PYTHONPATH="$(pwd)" python examples/single_verb/run.py
+
+Configuration Sections
+> extends
+This configuration allows you to extend a base configuration file or files.
+
+# single base
+extends: ../base_config.yml
+
+# multiple bases
+extends:
+  - ../base_config.yml
+  - ../base_config2.yml
+
+> root_dir
+This configuration allows you to set the root directory for the pipeline. All data inputs and outputs are assumed to be relative to this path.
+
+root_dir: /workspace/data_project
+
+> storage
+This configuration allows you define the output strategy for the pipeline.
+
+type: The type of storage to use. Options are file, memory, and blob
+base_dir (type: file only): The base directory to store the data in. This is relative to the config root.
+connection_string (type: blob only): The connection string to use for blob storage.
+container_name (type: blob only): The container to use for blob storage.
+> cache
+This configuration allows you define the cache strategy for the pipeline.
+
+type: The type of cache to use. Options are file and memory, and blob.
+base_dir (type: file only): The base directory to store the cache in. This is relative to the config root.
+connection_string (type: blob only): The connection string to use for blob storage.
+container_name (type: blob only): The container to use for blob storage.
+> reporting
+This configuration allows you define the reporting strategy for the pipeline. Report files are generated artifacts that summarize the performance metrics of the pipeline and emit any error messages.
+
+type: The type of reporting to use. Options are file, memory, and blob
+base_dir (type: file only): The base directory to store the reports in. This is relative to the config root.
+connection_string (type: blob only): The connection string to use for blob storage.
+container_name (type: blob only): The container to use for blob storage.
+> workflows
+This configuration section defines the workflow DAG for the pipeline. Here we define an array of workflows and express their inter-dependencies in steps:
+
+name: The name of the workflow. This is used to reference the workflow in other parts of the config.
+steps: The DataShaper steps that this workflow comprises. If a step defines an input in the form of workflow:<workflow_name>, then it is assumed to have a dependency on the output of that workflow.
+workflows:
+  - name: workflow1
+    steps:
+      - verb: derive
+        args:
+          column1: "col1"
+          column2: "col2"
+  - name: workflow2
+    steps:
+      - verb: derive
+        args:
+          column1: "col1"
+          column2: "col2"
+        input:
+          # dependency established here
+          source: workflow:workflow1
+
+> input
+type: The type of input to use. Options are file or blob.
+file_type: The file type field discriminates between the different input types. Options are csv and text.
+base_dir: The base directory to read the input files from. This is relative to the config file.
+file_pattern: A regex to match the input files. The regex must have named groups for each of the fields in the file_filter.
+post_process: A DataShaper workflow definition to apply to the input before executing the primary workflow.
+source_column (type: csv only): The column containing the source/author of the data
+text_column (type: csv only): The column containing the text of the data
+timestamp_column (type: csv only): The column containing the timestamp of the data
+timestamp_format (type: csv only): The format of the timestamp
+input:
+  type: file
+  file_type: csv
+  base_dir: ../data/csv # the directory containing the CSV files, this is relative to the config file
+  file_pattern: '.*[\/](?P<source>[^\/]+)[\/](?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})_(?P<author>[^_]+)_\d+\.csv$' # a regex to match the CSV files
+  # An additional file filter which uses the named groups from the file_pattern to further filter the files
+  # file_filter:
+  #   # source: (source_filter)
+  #   year: (2023)
+  #   month: (06)
+  #   # day: (22)
+  source_column: "author" # the column containing the source/author of the data
+  text_column: "message" # the column containing the text of the data
+  timestamp_column: "date(yyyyMMddHHmmss)" # optional, the column containing the timestamp of the data
+  timestamp_format: "%Y%m%d%H%M%S" # optional,  the format of the timestamp
+  post_process: # Optional, set of steps to process the data before going into the workflow
+    - verb: filter
+      args:
+        column: "title",
+        value: "My document"
+
+input:
+  type: file
+  file_type: csv
+  base_dir: ../data/csv # the directory containing the CSV files, this is relative to the config file
+  file_pattern: '.*[\/](?P<source>[^\/]+)[\/](?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})_(?P<author>[^_]+)_\d+\.csv$' # a regex to match the CSV files
+  # An additional file filter which uses the named groups from the file_pattern to further filter the files
+  # file_filter:
+  #   # source: (source_filter)
+  #   year: (2023)
+  #   month: (06)
+  #   # day: (22)
+  post_process: # Optional, set of steps to process the data before going into the workflow
+    - verb: filter
+      args:
+        column: "title",
+        value: "My document"
+
+
+
+
+
+
+Configuration Template
+The following template can be used and stored as a .env in the the directory where you're are pointing the --root parameter on your Indexing Pipeline execution.
+
+For details about how to run the Indexing Pipeline, refer to the Index CLI documentation.
+
+.env File Template
+Required variables are uncommented. All the optional configuration can be turned on or off as needed.
+
+Minimal Configuration
+# Base LLM Settings
+GRAPHRAG_API_KEY="your_api_key"
+GRAPHRAG_API_BASE="http://<domain>.openai.azure.com" # For Azure OpenAI Users
+GRAPHRAG_API_VERSION="api_version" # For Azure OpenAI Users
+
+# Text Generation Settings
+GRAPHRAG_LLM_TYPE="azure_openai_chat" # or openai_chat
+GRAPHRAG_LLM_DEPLOYMENT_NAME="gpt-4-turbo-preview"
+GRAPHRAG_LLM_MODEL_SUPPORTS_JSON=True
+
+# Text Embedding Settings
+GRAPHRAG_EMBEDDING_TYPE="azure_openai_embedding" # or openai_embedding
+GRAPHRAG_LLM_DEPLOYMENT_NAME="text-embedding-3-small"
+
+# Data Mapping Settings
+GRAPHRAG_INPUT_TYPE="text"
+
+Full Configuration
+
+# Required LLM Config
+
+# Input Data Configuration
+GRAPHRAG_INPUT_TYPE="file"
+
+# Plaintext Input Data Configuration
+# GRAPHRAG_INPUT_FILE_PATTERN=.*\.txt
+
+# Text Input Data Configuration
+GRAPHRAG_INPUT_FILE_TYPE="text"
+GRAPHRAG_INPUT_FILE_PATTERN=".*\.txt$"
+GRAPHRAG_INPUT_SOURCE_COLUMN=source
+# GRAPHRAG_INPUT_TIMESTAMP_COLUMN=None
+# GRAPHRAG_INPUT_TIMESTAMP_FORMAT=None
+# GRAPHRAG_INPUT_TEXT_COLUMN="text"
+# GRAPHRAG_INPUT_ATTRIBUTE_COLUMNS=id
+# GRAPHRAG_INPUT_TITLE_COLUMN="title"
+# GRAPHRAG_INPUT_TYPE="file"
+# GRAPHRAG_INPUT_CONNECTION_STRING=None
+# GRAPHRAG_INPUT_CONTAINER_NAME=None
+# GRAPHRAG_INPUT_BASE_DIR=None
+
+# Base LLM Settings
+GRAPHRAG_API_KEY="your_api_key"
+GRAPHRAG_API_BASE="http://<domain>.openai.azure.com" # For Azure OpenAI Users
+GRAPHRAG_API_VERSION="api_version" # For Azure OpenAI Users
+# GRAPHRAG_API_ORGANIZATION=None
+# GRAPHRAG_API_PROXY=None
+
+# Text Generation Settings
+# GRAPHRAG_LLM_TYPE=openai_chat
+GRAPHRAG_LLM_API_KEY="your_api_key" # If GRAPHRAG_API_KEY is not set
+GRAPHRAG_LLM_API_BASE="http://<domain>.openai.azure.com" # For Azure OpenAI Users and if GRAPHRAG_API_BASE is not set
+GRAPHRAG_LLM_API_VERSION="api_version" # For Azure OpenAI Users and if GRAPHRAG_API_VERSION is not set
+GRAPHRAG_LLM_MODEL_SUPPORTS_JSON=True # Suggested by default
+# GRAPHRAG_LLM_API_ORGANIZATION=None
+# GRAPHRAG_LLM_API_PROXY=None
+# GRAPHRAG_LLM_DEPLOYMENT_NAME=None
+# GRAPHRAG_LLM_MODEL=gpt-4-turbo-preview
+# GRAPHRAG_LLM_MAX_TOKENS=4000
+# GRAPHRAG_LLM_REQUEST_TIMEOUT=180
+# GRAPHRAG_LLM_THREAD_COUNT=50
+# GRAPHRAG_LLM_THREAD_STAGGER=0.3
+# GRAPHRAG_LLM_CONCURRENT_REQUESTS=25
+# GRAPHRAG_LLM_TPM=0
+# GRAPHRAG_LLM_RPM=0
+# GRAPHRAG_LLM_MAX_RETRIES=10
+# GRAPHRAG_LLM_MAX_RETRY_WAIT=10
+# GRAPHRAG_LLM_SLEEP_ON_RATE_LIMIT_RECOMMENDATION=True
+
+# Text Embedding Settings
+# GRAPHRAG_EMBEDDING_TYPE=openai_embedding
+GRAPHRAG_EMBEDDING_API_KEY="your_api_key" # If GRAPHRAG_API_KEY is not set
+GRAPHRAG_EMBEDDING_API_BASE="http://<domain>.openai.azure.com"  # For Azure OpenAI Users and if GRAPHRAG_API_BASE is not set
+GRAPHRAG_EMBEDDING_API_VERSION="api_version" # For Azure OpenAI Users and if GRAPHRAG_API_VERSION is not set
+# GRAPHRAG_EMBEDDING_API_ORGANIZATION=None
+# GRAPHRAG_EMBEDDING_API_PROXY=None
+# GRAPHRAG_EMBEDDING_DEPLOYMENT_NAME=None
+# GRAPHRAG_EMBEDDING_MODEL=text-embedding-3-small
+# GRAPHRAG_EMBEDDING_BATCH_SIZE=16
+# GRAPHRAG_EMBEDDING_BATCH_MAX_TOKENS=8191
+# GRAPHRAG_EMBEDDING_TARGET=required
+# GRAPHRAG_EMBEDDING_SKIP=None
+# GRAPHRAG_EMBEDDING_THREAD_COUNT=None
+# GRAPHRAG_EMBEDDING_THREAD_STAGGER=50
+# GRAPHRAG_EMBEDDING_CONCURRENT_REQUESTS=25
+# GRAPHRAG_EMBEDDING_TPM=0
+# GRAPHRAG_EMBEDDING_RPM=0
+# GRAPHRAG_EMBEDDING_MAX_RETRIES=10
+# GRAPHRAG_EMBEDDING_MAX_RETRY_WAIT=10
+# GRAPHRAG_EMBEDDING_SLEEP_ON_RATE_LIMIT_RECOMMENDATION=True
+
+# Data Mapping Settings
+# GRAPHRAG_INPUT_ENCODING=utf-8
+
+# Data Chunking
+# GRAPHRAG_CHUNK_SIZE=1200
+# GRAPHRAG_CHUNK_OVERLAP=100
+# GRAPHRAG_CHUNK_BY_COLUMNS=id
+
+# Prompting Overrides
+# GRAPHRAG_ENTITY_EXTRACTION_PROMPT_FILE=None
+# GRAPHRAG_ENTITY_EXTRACTION_MAX_GLEANINGS=1
+# GRAPHRAG_ENTITY_EXTRACTION_ENTITY_TYPES=organization,person,event,geo
+# GRAPHRAG_SUMMARIZE_DESCRIPTIONS_PROMPT_FILE=None
+# GRAPHRAG_SUMMARIZE_DESCRIPTIONS_MAX_LENGTH=500
+# GRAPHRAG_CLAIM_EXTRACTION_DESCRIPTION="Any claims or facts that could be relevant to threat analysis."
+# GRAPHRAG_CLAIM_EXTRACTION_PROMPT_FILE=None
+# GRAPHRAG_CLAIM_EXTRACTION_MAX_GLEANINGS=1
+# GRAPHRAG_COMMUNITY_REPORT_PROMPT_FILE=None
+# GRAPHRAG_COMMUNITY_REPORT_MAX_LENGTH=1500
+
+# Storage
+# GRAPHRAG_STORAGE_TYPE=file
+# GRAPHRAG_STORAGE_CONNECTION_STRING=None
+# GRAPHRAG_STORAGE_CONTAINER_NAME=None
+# GRAPHRAG_STORAGE_BASE_DIR=None
+
+# Cache
+# GRAPHRAG_CACHE_TYPE=file
+# GRAPHRAG_CACHE_CONNECTION_STRING=None
+# GRAPHRAG_CACHE_CONTAINER_NAME=None
+# GRAPHRAG_CACHE_BASE_DIR=None
+
+# Reporting
+# GRAPHRAG_REPORTING_TYPE=file
+# GRAPHRAG_REPORTING_CONNECTION_STRING=None
+# GRAPHRAG_REPORTING_CONTAINER_NAME=None
+# GRAPHRAG_REPORTING_BASE_DIR=None
+
+# Node2Vec Parameters
+# GRAPHRAG_NODE2VEC_ENABLED=False
+# GRAPHRAG_NODE2VEC_NUM_WALKS=10
+# GRAPHRAG_NODE2VEC_WALK_LENGTH=40
+# GRAPHRAG_NODE2VEC_WINDOW_SIZE=2
+# GRAPHRAG_NODE2VEC_ITERATIONS=3
+# GRAPHRAG_NODE2VEC_RANDOM_SEED=597832
+
+# Data Snapshotting
+# GRAPHRAG_SNAPSHOT_GRAPHML=False
+# GRAPHRAG_SNAPSHOT_RAW_ENTITIES=False
+# GRAPHRAG_SNAPSHOT_TOP_LEVEL_NODES=False
+
+# Miscellaneous Settings
+# GRAPHRAG_ASYNC_MODE=asyncio
+# GRAPHRAG_ENCODING_MODEL=cl100k_base
+# GRAPHRAG_MAX_CLUSTER_SIZE=10
+# GRAPHRAG_ENTITY_RESOLUTION_ENABLED=False
+# GRAPHRAG_SKIP_WORKFLOWS=None
+# GRAPHRAG_UMAP_ENABLED=False
+
+
+
+
+
+
+
+
+
+Prompt Tuning ⚙️
+This page provides an overview of the prompt tuning options available for the GraphRAG indexing engine.
+
+Default Prompts
+The default prompts are the simplest way to get started with the GraphRAG system. It is designed to work out-of-the-box with minimal configuration. You can find more detail about these prompts in the following links:
+
+Entity/Relationship Extraction
+Entity/Relationship Description Summarization
+Claim Extraction
+Community Reports
+Auto Templating
+Auto Templating leverages your input data and LLM interactions to create domain adaptive templates for the generation of the knowledge graph. It is highly encouraged to run it as it will yield better results when executing an Index Run. For more details about how to use it, please refer to the Auto Templating documentation.
+
+Manual Configuration
+Manual configuration is an advanced use-case. Most users will want to use the Auto Templating feature instead. Details about how to use manual configuration are available in the Manual Prompt Configuration documentation.
+
+
+
+
+
+
+
+
+Prompt Tuning ⚙️
+GraphRAG provides the ability to create domain adaptive templates for the generation of the knowledge graph. This step is optional, though it is highly encouraged to run it as it will yield better results when executing an Index Run.
+
+The templates are generated by loading the inputs, splitting them into chunks (text units) and then running a series of LLM invocations and template substitutions to generate the final prompts. We suggest using the default values provided by the script, but in this page you'll find the detail of each in case you want to further explore and tweak the template generation algorithm.
+
+Prerequisites
+Before running the automatic template generation make sure you have already initialized your workspace with the graphrag.index --init command. This will create the necessary configuration files and the default prompts. Refer to the Init Documentation for more information about the initialization process.
+
+Usage
+You can run the main script from the command line with various options:
+
+python -m graphrag.prompt_tune [--root ROOT] [--domain DOMAIN]  [--method METHOD] [--limit LIMIT] [--language LANGUAGE] [--max-tokens MAX_TOKENS] [--chunk-size CHUNK_SIZE] [--no-entity-types] [--output OUTPUT]
+
+Command-Line Options
+--root (optional): The data project root directory, including the config files (YML, JSON, or .env). Defaults to the current directory.
+
+--domain (optional): The domain related to your input data, such as 'space science', 'microbiology', or 'environmental news'. If left empty, the domain will be inferred from the input data.
+
+--method (optional): The method to select documents. Options are all, random, or top. Default is random.
+
+--limit (optional): The limit of text units to load when using random or top selection. Default is 15.
+
+--language (optional): The language to use for input processing. If it is different from the inputs' language, the LLM will translate. Default is "" meaning it will be automatically detected from the inputs.
+
+--max-tokens (optional): Maximum token count for prompt generation. Default is 2000.
+
+--chunk-size (optional): The size in tokens to use for generating text units from input documents. Default is 200.
+
+--no-entity-types (optional): Use untyped entity extraction generation. We recommend using this when your data covers a lot of topics or it is highly randomized.
+
+--output (optional): The folder to save the generated prompts. Default is "prompts".
+
+Example Usage
+python -m graphrag.prompt_tune --root /path/to/project --domain "environmental news" --method random --limit 10 --language English --max-tokens 2048 --chunk-size 256 --no-entity-types --output /path/to/output
+
+or, with minimal configuration (suggested):
+
+python -m graphrag.prompt_tune --root /path/to/project --no-entity-types
+
+Document Selection Methods
+The auto template feature ingests the input data and then divides it into text units the size of the chunk size parameter. After that, it uses one of the following selection methods to pick a sample to work with for template generation:
+
+random: Select text units randomly. This is the default and recommended option.
+top: Select the head n text units.
+all: Use all text units for the generation. Use only with small datasets; this option is not usually recommended.
+Modify Env Vars
+After running auto-templating, you should modify the following environment variables (or config variables) to pick up the new prompts on your index run. Note: Please make sure to update the correct path to the generated prompts, in this example we are using the default "prompts" path.
+
+GRAPHRAG_ENTITY_EXTRACTION_PROMPT_FILE = "prompts/entity_extraction.txt"
+
+GRAPHRAG_COMMUNITY_REPORT_PROMPT_FILE = "prompts/community_report.txt"
+
+GRAPHRAG_SUMMARIZE_DESCRIPTIONS_PROMPT_FILE = "prompts/summarize_descriptions.txt"
+
+
+
+
+
+
+
+
+
+Prompt Tuning⚙️
+The GraphRAG indexer, by default, will run with a handful of prompts that are designed to work well in the broad context of knowledge discovery. However, it is quite common to want to tune the prompts to better suit your specific use case. We provide a means for you to do this by allowing you to specify a custom prompt file, which will each use a series of token-replacements internally.
+
+Each of these prompts may be overridden by writing a custom prompt file in plaintext. We use token-replacements in the form of {token_name}, and the descriptions for the available tokens can be found below.
+
+Entity/Relationship Extraction
+Prompt Source
+
+Tokens (values provided by extractor)
+{input_text} - The input text to be processed.
+{entity_types} - A list of entity types
+{tuple_delimiter} - A delimiter for separating values within a tuple. A single tuple is used to represent an individual entity or relationship.
+{record_delimiter} - A delimiter for separating tuple instances.
+{completion_delimiter} - An indicator for when generation is complete.
+Summarize Entity/Relationship Descriptions
+Prompt Source
+
+Tokens (values provided by extractor)
+{entity_name} - The name of the entity or the source/target pair of the relationship.
+{description_list} - A list of descriptions for the entity or relationship.
+Claim Extraction
+Prompt Source
+
+Tokens (values provided by extractor)
+{input_text} - The input text to be processed.
+{tuple_delimiter} - A delimiter for separating values within a tuple. A single tuple is used to represent an individual entity or relationship.
+{record_delimiter} - A delimiter for separating tuple instances.
+{completion_delimiter} - An indicator for when generation is complete.
+Note: there is additional paramater for the Claim Description that is used in claim extraction. The default value is
+
+"Any claims or facts that could be relevant to information discovery."
+
+See the configuration documentation for details on how to change this.
+
+Generate Community Reports
+Prompt Source
+
+Tokens (values provided by extractor)
+{input_text} - The input text to generate the report with. This will contain tables of entities and relationships.
+
+
+
+
+
+
+
+
+
+
+
+Query Engine 🔎
+The Query Engine is the retrieval module of the Graph RAG Library. It is one of the two main components of the Graph RAG library, the other being the Indexing Pipeline (see Indexing Pipeline). It is responsible for the following tasks:
+
+Local Search
+Global Search
+Question Generation
+Local Search
+Local search method generates answers by combining relevant data from the AI-extracted knowledge-graph with text chunks of the raw documents. This method is suitable for questions that require an understanding of specific entities mentioned in the documents (e.g. What are the healing properties of chamomile?).
+
+For more details about how Local Search works please refer to the Local Search documentation.
+
+Global Search
+Global search method generates answers by searching over all AI-generated community reports in a map-reduce fashion. This is a resource-intensive method, but often gives good responses for questions that require an understanding of the dataset as a whole (e.g. What are the most significant values of the herbs mentioned in this notebook?).
+
+More about this can be checked at the Global Search documentation.
+
+Question Generation
+This functionality takes a list of user queries and generates the next candidate questions. This is useful for generating follow-up questions in a conversation or for generating a list of questions for the investigator to dive deeper into the dataset.
+
+Information about how question generation works can be found at the Question Generation documentation page.
+
+
+
+
+
+
+
+
+
+
+
+Local Search 🔎
+Entity-based Reasoning
+The local search method combines structured data from the knowledge graph with unstructured data from the input documents to augment the LLM context with relevant entity information at query time. It is well-suited for answering questions that require an understanding of specific entities mentioned in the input documents (e.g., “What are the healing properties of chamomile?”).
+
+Methodology
+Entity
+Description
+Embedding
+Entity-Text
+Unit Mapping
+Ranking +
+Filtering
+Entity-Report
+Mapping
+Ranking +
+Filtering
+Entity-Entity
+Relationships
+Ranking +
+Filtering
+Entity-Entity
+Relationships
+Ranking +
+Filtering
+Entity-Covariate
+Mappings
+Ranking +
+Filtering
+User Query
+.1
+Conversation
+History
+Extracted Entities
+.2
+Candidate
+Text Units
+Prioritized
+Text Units
+.3
+Candidate
+Community Reports
+Prioritized
+Community Reports
+Candidate
+Entities
+Prioritized
+Entities
+Candidate
+Relationships
+Prioritized
+Relationships
+Candidate
+Covariates
+Prioritized
+Covariates
+Conversation History
+Response
+Local Search Dataflow
+Given a user query and, optionally, the conversation history, the local search method identifies a set of entities from the knowledge graph that are semantically-related to the user input. These entities serve as access points into the knowledge graph, enabling the extraction of further relevant details such as connected entities, relationships, entity covariates, and community reports. Additionally, it also extracts relevant text chunks from the raw input documents that are associated with the identified entities. These candidate data sources are then prioritized and filtered to fit within a single context window of pre-defined size, which is used to generate a response to the user query.
+
+Configuration
+Below are the key parameters of the LocalSearch class:
+
+llm: OpenAI model object to be used for response generation
+context_builder: context builder object to be used for preparing context data from collections of knowledge model objects
+system_prompt: prompt template used to generate the search response. Default template can be found at system_prompt
+response_type: free-form text describing the desired response type and format (e.g., Multiple Paragraphs, Multi-Page Report)
+llm_params: a dictionary of additional parameters (e.g., temperature, max_tokens) to be passed to the LLM call
+context_builder_params: a dictionary of additional parameters to be passed to the context_builder object when building context for the search prompt
+callbacks: optional callback functions, can be used to provide custom event handlers for LLM's completion streaming events
+How to Use
+An example of a local search scenario can be found in the following notebook.
+
+
+
+
+
+
+
+
+Question Generation ❔
+Entity-based Question Generation
+The question generation method combines structured data from the knowledge graph with unstructured data from the input documents to generate candidate questions related to specific entities.
+
+Methodology
+Given a list of prior user questions, the question generation method uses the same context-building approach employed in local search to extract and prioritize relevant structured and unstructured data, including entities, relationships, covariates, community reports and raw text chunks. These data records are then fitted into a single LLM prompt to generate candidate follow-up questions that represent the most important or urgent information content or themes in the data.
+
+Configuration
+Below are the key parameters of the Question Generation class:
+
+llm: OpenAI model object to be used for response generation
+context_builder: context builder object to be used for preparing context data from collections of knowledge model objects, using the same context builder class as in local search
+system_prompt: prompt template used to generate candidate questions. Default template can be found at system_prompt
+llm_params: a dictionary of additional parameters (e.g., temperature, max_tokens) to be passed to the LLM call
+context_builder_params: a dictionary of additional parameters to be passed to the context_builder object when building context for the question generation prompt
+callbacks: optional callback functions, can be used to provide custom event handlers for LLM's completion streaming events
+How to Use
+An example of the question generation function can be found in the following notebook.
+
+
+
+
+
+
+
+
+Global Search 🔎
+Whole Dataset Reasoning
+Baseline RAG struggles with queries that require aggregation of information across the dataset to compose an answer. Queries such as “What are the top 5 themes in the data?” perform terribly because baseline RAG relies on a vector search of semantically similar text content within the dataset. There is nothing in the query to direct it to the correct information.
+
+However, with GraphRAG we can answer such questions, because the structure of the LLM-generated knowledge graph tells us about the structure (and thus themes) of the dataset as a whole. This allows the private dataset to be organized into meaningful semantic clusters that are pre-summarized. Using our global search method, the LLM uses these clusters to summarize these themes when responding to a user query.
+
+Methodology
+Ranking +
+Filtering
+Shuffled Community
+Report Batch 1
+Shuffled Community
+Report Batch 2
+Shuffled Community
+Report Batch N
+RIR
+{1..N}
+Rated Intermediate
+Response N
+Rated Intermediate
+Response 1
+Rated Intermediate
+Response 2
+User Query
+.1
+Conversation History
+.2
+Aggregated Intermediate
+Responses
+Response
+Global Search Dataflow
+Given a user query and, optionally, the conversation history, the global search method uses a collection of LLM-generated community reports from a specified level of the graph's community hierarchy as context data to generate response in a map-reduce manner. At the map step, community reports are segmented into text chunks of pre-defined size. Each text chunk is then used to produce an intermediate response containing a list of point, each of which is accompanied by a numerical rating indicating the importance of the point. At the reduce step, a filtered set of the most important points from the intermediate responses are aggregated and used as the context to generate the final response.
+
+The quality of the global search’s response can be heavily influenced by the level of the community hierarchy chosen for sourcing community reports. Lower hierarchy levels, with their detailed reports, tend to yield more thorough responses, but may also increase the time and LLM resources needed to generate the final response due to the volume of reports.
+
+Configuration
+Below are the key parameters of the GlobalSearch class:
+
+llm: OpenAI model object to be used for response generation
+context_builder: context builder object to be used for preparing context data from community reports
+map_system_prompt: prompt template used in the map stage. Default template can be found at map_system_prompt
+reduce_system_prompt: prompt template used in the reduce stage, default template can be found at reduce_system_prompt
+response_type: free-form text describing the desired response type and format (e.g., Multiple Paragraphs, Multi-Page Report)
+allow_general_knowledge: setting this to True will include additional instructions to the reduce_system_prompt to prompt the LLM to incorporate relevant real-world knowledge outside of the dataset. Note that this may increase hallucinations, but can be useful for certain scenarios. Default is False *general_knowledge_inclusion_prompt: instruction to add to the reduce_system_prompt if allow_general_knowledge is enabled. Default instruction can be found at general_knowledge_instruction
+max_data_tokens: token budget for the context data
+map_llm_params: a dictionary of additional parameters (e.g., temperature, max_tokens) to be passed to the LLM call at the map stage
+reduce_llm_params: a dictionary of additional parameters (e.g., temperature, max_tokens) to passed to the LLM call at the reduce stage
+context_builder_params: a dictionary of additional parameters to be passed to the context_builder object when building context window for the map stage.
+concurrent_coroutines: controls the degree of parallelism in the map stage.
+callbacks: optional callback functions, can be used to provide custom event handlers for LLM's completion streaming events
+How to Use
+An example of a global search scenario can be found in the following notebook.
+
+
+
+
+
+
+
+
+
+Query CLI
+The GraphRAG query CLI allows for no-code usage of the GraphRAG Query engine.
+
+python -m graphrag.query --data <path-to-data> --community_level <comunit-level> --response_type <response-type> --method <"local"|"global"> <query>
+
+CLI Arguments
+--data <path-to-data> - Folder containing the .parquet output files from running the Indexer.
+--community_level <community-level> - Community level in the Leiden community hierarchy from which we will load the community reports higher value means we use reports on smaller communities. Default: 2
+--response_type <response-type> - Free form text describing the response type and format, can be anything, e.g. Multiple Paragraphs, Single Paragraph, Single Sentence, List of 3-7 Points, Single Page, Multi-Page Report. Default: Multiple Paragraphs.
+--method <"local"|"global"> - Method to use to answer the query, one of local or global. For more information check Overview
+Env Variables
+Required environment variables to execute:
+
+GRAPHRAG_API_KEY - API Key for executing the model, will fallback to OPENAI_API_KEY if one is not provided.
+GRAPHRAG_LLM_MODEL - Model to use for Chat Completions.
+GRAPHRAG_EMBEDDING_MODEL - Model to use for Embeddings.
+You can further customize the execution by providing these environment variables:
+
+GRAPHRAG_LLM_API_BASE - The API Base URL. Default: None
+GRAPHRAG_LLM_TYPE - The LLM operation type. Either openai_chat or azure_openai_chat. Default: openai_chat
+GRAPHRAG_LLM_MAX_RETRIES - The maximum number of retries to attempt when a request fails. Default: 20
+GRAPHRAG_EMBEDDING_API_BASE - The API Base URL. Default: None
+GRAPHRAG_EMBEDDING_TYPE - The embedding client to use. Either openai_embedding or azure_openai_embedding. Default: openai_embedding
+GRAPHRAG_EMBEDDING_MAX_RETRIES - The maximum number of retries to attempt when a request fails. Default: 20
+GRAPHRAG_LOCAL_SEARCH_TEXT_UNIT_PROP - Proportion of context window dedicated to related text units. Default: 0.5
+GRAPHRAG_LOCAL_SEARCH_COMMUNITY_PROP - Proportion of context window dedicated to community reports. Default: 0.1
+GRAPHRAG_LOCAL_SEARCH_CONVERSATION_HISTORY_MAX_TURNS - Maximum number of turns to include in the conversation history. Default: 5
+GRAPHRAG_LOCAL_SEARCH_TOP_K_ENTITIES - Number of related entities to retrieve from the entity description embedding store. Default: 10
+GRAPHRAG_LOCAL_SEARCH_TOP_K_RELATIONSHIPS - Control the number of out-of-network relationships to pull into the context window. Default: 10
+GRAPHRAG_LOCAL_SEARCH_MAX_TOKENS - Change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 5000). Default: 12000
+GRAPHRAG_LOCAL_SEARCH_LLM_MAX_TOKENS - Change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 1000=1500). Default: 2000
+GRAPHRAG_GLOBAL_SEARCH_MAX_TOKENS - Change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 5000). Default: 12000
+GRAPHRAG_GLOBAL_SEARCH_DATA_MAX_TOKENS - Change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 5000). Default: 12000
+GRAPHRAG_GLOBAL_SEARCH_MAP_MAX_TOKENS - Default: 500
+GRAPHRAG_GLOBAL_SEARCH_REDUCE_MAX_TOKENS - Change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 1000-1500). Default: 2000
+GRAPHRAG_GLOBAL_SEARCH_CONCURRENCY - Default: 32
+
+
+
+
+
+
+
+Query Engine Notebooks
+For examples about running Query please refer to the following notebooks:
+
+Global Search Notebook
+Local Search Notebook
+The test dataset for these notebooks can be found here.
+
+
+
+
+
+
+
+# Copyright (c) 2024 Microsoft Corporation.
+# Licensed under the MIT License.
+
+'\nCopyright (c) Microsoft Corporation.\n'
+
+import os
+
+import pandas as pd
+import tiktoken
+
+from graphrag.query.indexer_adapters import read_indexer_entities, read_indexer_reports
+from graphrag.query.llm.oai.chat_openai import ChatOpenAI
+from graphrag.query.llm.oai.typing import OpenaiApiType
+from graphrag.query.structured_search.global_search.community_context import (
+    GlobalCommunityContext,
+)
+from graphrag.query.structured_search.global_search.search import GlobalSearch
+
+Global Search example
+Global search method generates answers by searching over all AI-generated community reports in a map-reduce fashion. This is a resource-intensive method, but often gives good responses for questions that require an understanding of the dataset as a whole (e.g. What are the most significant values of the herbs mentioned in this notebook?).
+
+LLM setup
+api_key = os.environ["GRAPHRAG_API_KEY"]
+llm_model = os.environ["GRAPHRAG_LLM_MODEL"]
+
+llm = ChatOpenAI(
+    api_key=api_key,
+    model=llm_model,
+    api_type=OpenaiApiType.OpenAI,  # OpenaiApiType.OpenAI or OpenaiApiType.AzureOpenAI
+    max_retries=20,
+)
+
+token_encoder = tiktoken.get_encoding("cl100k_base")
+
+Load community reports as context for global search
+Load all community reports in the create_final_community_reports table from the ire-indexing engine, to be used as context data for global search.
+Load entities from the create_final_nodes and create_final_entities tables from the ire-indexing engine, to be used for calculating community weights for context ranking. Note that this is optional (if no entities are provided, we will not calculate community weights and only use the rank attribute in the community reports table for context ranking)
+# parquet files generated from indexing pipeline
+INPUT_DIR = "./inputs/operation dulce"
+COMMUNITY_REPORT_TABLE = "create_final_community_reports"
+ENTITY_TABLE = "create_final_nodes"
+ENTITY_EMBEDDING_TABLE = "create_final_entities"
+
+# community level in the Leiden community hierarchy from which we will load the community reports
+# higher value means we use reports from more fine-grained communities (at the cost of higher computation cost)
+COMMUNITY_LEVEL = 2
+
+entity_df = pd.read_parquet(f"{INPUT_DIR}/{ENTITY_TABLE}.parquet")
+report_df = pd.read_parquet(f"{INPUT_DIR}/{COMMUNITY_REPORT_TABLE}.parquet")
+entity_embedding_df = pd.read_parquet(f"{INPUT_DIR}/{ENTITY_EMBEDDING_TABLE}.parquet")
+
+reports = read_indexer_reports(report_df, entity_df, COMMUNITY_LEVEL)
+entities = read_indexer_entities(entity_df, entity_embedding_df, COMMUNITY_LEVEL)
+print(f"Report records: {len(report_df)}")
+report_df.head()
+
+Build global context based on community reports
+context_builder = GlobalCommunityContext(
+    community_reports=reports,
+    entities=entities,  # default to None if you don't want to use community weights for ranking
+    token_encoder=token_encoder,
+)
+
+Perform global search
+context_builder_params = {
+    "use_community_summary": False,  # False means using full community reports. True means using community short summaries.
+    "shuffle_data": True,
+    "include_community_rank": True,
+    "min_community_rank": 0,
+    "community_rank_name": "rank",
+    "include_community_weight": True,
+    "community_weight_name": "occurrence weight",
+    "normalize_community_weight": True,
+    "max_tokens": 12_000,  # change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 5000)
+    "context_name": "Reports",
+}
+
+map_llm_params = {
+    "max_tokens": 1000,
+    "temperature": 0.0,
+    "response_format": {"type": "json_object"},
+}
+
+reduce_llm_params = {
+    "max_tokens": 2000,  # change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 1000-1500)
+    "temperature": 0.0,
+}
+
+search_engine = GlobalSearch(
+    llm=llm,
+    context_builder=context_builder,
+    token_encoder=token_encoder,
+    max_data_tokens=12_000,  # change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 5000)
+    map_llm_params=map_llm_params,
+    reduce_llm_params=reduce_llm_params,
+    allow_general_knowledge=False,  # set this to True will add instruction to encourage the LLM to incorporate general knowledge in the response, which may increase hallucinations, but could be useful in some use cases.
+    json_mode=True,  # set this to False if your LLM model does not support JSON mode.
+    context_builder_params=context_builder_params,
+    concurrent_coroutines=32,
+    response_type="multiple paragraphs",  # free form text describing the response type and format, can be anything, e.g. prioritized list, single paragraph, multiple paragraphs, multiple-page report
+)
+
+result = await search_engine.asearch(
+    "What is the major conflict in this story and who are the protagonist and antagonist?"
+)
+
+print(result.response)
+
+# inspect the data used to build the context for the LLM responses
+result.context_data["reports"]
+
+# inspect number of LLM calls and tokens
+print(f"LLM calls: {result.llm_calls}. LLM tokens: {result.prompt_tokens}")
+
+
+
+
+
+
+
+
+
+# Copyright (c) 2024 Microsoft Corporation.
+# Licensed under the MIT License.
+
+import os
+
+import pandas as pd
+import tiktoken
+
+from graphrag.query.context_builder.entity_extraction import EntityVectorStoreKey
+from graphrag.query.indexer_adapters import (
+    read_indexer_covariates,
+    read_indexer_entities,
+    read_indexer_relationships,
+    read_indexer_reports,
+    read_indexer_text_units,
+)
+from graphrag.query.input.loaders.dfs import (
+    store_entity_semantic_embeddings,
+)
+from graphrag.query.llm.oai.chat_openai import ChatOpenAI
+from graphrag.query.llm.oai.embedding import OpenAIEmbedding
+from graphrag.query.llm.oai.typing import OpenaiApiType
+from graphrag.query.question_gen.local_gen import LocalQuestionGen
+from graphrag.query.structured_search.local_search.mixed_context import (
+    LocalSearchMixedContext,
+)
+from graphrag.query.structured_search.local_search.search import LocalSearch
+from graphrag.vector_stores.lancedb import LanceDBVectorStore
+
+Local Search Example
+Local search method generates answers by combining relevant data from the AI-extracted knowledge-graph with text chunks of the raw documents. This method is suitable for questions that require an understanding of specific entities mentioned in the documents (e.g. What are the healing properties of chamomile?).
+
+Load text units and graph data tables as context for local search
+In this test we first load indexing outputs from parquet files to dataframes, then convert these dataframes into collections of data objects aligning with the knowledge model.
+Load tables to dataframes
+INPUT_DIR = "./inputs/operation dulce"
+LANCEDB_URI = f"{INPUT_DIR}/lancedb"
+
+COMMUNITY_REPORT_TABLE = "create_final_community_reports"
+ENTITY_TABLE = "create_final_nodes"
+ENTITY_EMBEDDING_TABLE = "create_final_entities"
+RELATIONSHIP_TABLE = "create_final_relationships"
+COVARIATE_TABLE = "create_final_covariates"
+TEXT_UNIT_TABLE = "create_final_text_units"
+COMMUNITY_LEVEL = 2
+
+Read entities
+# read nodes table to get community and degree data
+entity_df = pd.read_parquet(f"{INPUT_DIR}/{ENTITY_TABLE}.parquet")
+entity_embedding_df = pd.read_parquet(f"{INPUT_DIR}/{ENTITY_EMBEDDING_TABLE}.parquet")
+
+entities = read_indexer_entities(entity_df, entity_embedding_df, COMMUNITY_LEVEL)
+
+# load description embeddings to an in-memory lancedb vectorstore
+# to connect to a remote db, specify url and port values.
+description_embedding_store = LanceDBVectorStore(
+    collection_name="entity_description_embeddings",
+)
+description_embedding_store.connect(db_uri=LANCEDB_URI)
+entity_description_embeddings = store_entity_semantic_embeddings(
+    entities=entities, vectorstore=description_embedding_store
+)
+
+print(f"Entity count: {len(entity_df)}")
+entity_df.head()
+
+Read relationships
+relationship_df = pd.read_parquet(f"{INPUT_DIR}/{RELATIONSHIP_TABLE}.parquet")
+relationships = read_indexer_relationships(relationship_df)
+
+print(f"Relationship count: {len(relationship_df)}")
+relationship_df.head()
+
+covariate_df = pd.read_parquet(f"{INPUT_DIR}/{COVARIATE_TABLE}.parquet")
+
+claims = read_indexer_covariates(covariate_df)
+
+print(f"Claim records: {len(claims)}")
+covariates = {"claims": claims}
+
+Read community reports
+report_df = pd.read_parquet(f"{INPUT_DIR}/{COMMUNITY_REPORT_TABLE}.parquet")
+reports = read_indexer_reports(report_df, entity_df, COMMUNITY_LEVEL)
+
+print(f"Report records: {len(report_df)}")
+report_df.head()
+
+Read text units
+text_unit_df = pd.read_parquet(f"{INPUT_DIR}/{TEXT_UNIT_TABLE}.parquet")
+text_units = read_indexer_text_units(text_unit_df)
+
+print(f"Text unit records: {len(text_unit_df)}")
+text_unit_df.head()
+
+api_key = os.environ["GRAPHRAG_API_KEY"]
+llm_model = os.environ["GRAPHRAG_LLM_MODEL"]
+embedding_model = os.environ["GRAPHRAG_EMBEDDING_MODEL"]
+
+llm = ChatOpenAI(
+    api_key=api_key,
+    model=llm_model,
+    api_type=OpenaiApiType.OpenAI,  # OpenaiApiType.OpenAI or OpenaiApiType.AzureOpenAI
+    max_retries=20,
+)
+
+token_encoder = tiktoken.get_encoding("cl100k_base")
+
+text_embedder = OpenAIEmbedding(
+    api_key=api_key,
+    api_base=None,
+    api_type=OpenaiApiType.OpenAI,
+    model=embedding_model,
+    deployment_name=embedding_model,
+    max_retries=20,
+)
+
+Create local search context builder
+context_builder = LocalSearchMixedContext(
+    community_reports=reports,
+    text_units=text_units,
+    entities=entities,
+    relationships=relationships,
+    covariates=covariates,
+    entity_text_embeddings=description_embedding_store,
+    embedding_vectorstore_key=EntityVectorStoreKey.ID,  # if the vectorstore uses entity title as ids, set this to EntityVectorStoreKey.TITLE
+    text_embedder=text_embedder,
+    token_encoder=token_encoder,
+)
+
+Create local search engine
+# text_unit_prop: proportion of context window dedicated to related text units
+# community_prop: proportion of context window dedicated to community reports.
+# The remaining proportion is dedicated to entities and relationships. Sum of text_unit_prop and community_prop should be <= 1
+# conversation_history_max_turns: maximum number of turns to include in the conversation history.
+# conversation_history_user_turns_only: if True, only include user queries in the conversation history.
+# top_k_mapped_entities: number of related entities to retrieve from the entity description embedding store.
+# top_k_relationships: control the number of out-of-network relationships to pull into the context window.
+# include_entity_rank: if True, include the entity rank in the entity table in the context window. Default entity rank = node degree.
+# include_relationship_weight: if True, include the relationship weight in the context window.
+# include_community_rank: if True, include the community rank in the context window.
+# return_candidate_context: if True, return a set of dataframes containing all candidate entity/relationship/covariate records that
+# could be relevant. Note that not all of these records will be included in the context window. The "in_context" column in these
+# dataframes indicates whether the record is included in the context window.
+# max_tokens: maximum number of tokens to use for the context window.
+
+
+local_context_params = {
+    "text_unit_prop": 0.5,
+    "community_prop": 0.1,
+    "conversation_history_max_turns": 5,
+    "conversation_history_user_turns_only": True,
+    "top_k_mapped_entities": 10,
+    "top_k_relationships": 10,
+    "include_entity_rank": True,
+    "include_relationship_weight": True,
+    "include_community_rank": False,
+    "return_candidate_context": False,
+    "embedding_vectorstore_key": EntityVectorStoreKey.ID,  # set this to EntityVectorStoreKey.TITLE if the vectorstore uses entity title as ids
+    "max_tokens": 12_000,  # change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 5000)
+}
+
+llm_params = {
+    "max_tokens": 2_000,  # change this based on the token limit you have on your model (if you are using a model with 8k limit, a good setting could be 1000=1500)
+    "temperature": 0.0,
+}
+
+search_engine = LocalSearch(
+    llm=llm,
+    context_builder=context_builder,
+    token_encoder=token_encoder,
+    llm_params=llm_params,
+    context_builder_params=local_context_params,
+    response_type="multiple paragraphs",  # free form text describing the response type and format, can be anything, e.g. prioritized list, single paragraph, multiple paragraphs, multiple-page report
+)
+
+Run local search on sample queries
+result = await search_engine.asearch("Tell me about Agent Mercer")
+print(result.response)
+
+question = "Tell me about Dr. Jordan Hayes"
+result = await search_engine.asearch(question)
+print(result.response)
+
+Inspecting the context data used to generate the response
+result.context_data["entities"].head()
+
+result.context_data["relationships"].head()
+
+result.context_data["reports"].head()
+
+result.context_data["sources"].head()
+
+if "claims" in result.context_data:
+    print(result.context_data["claims"].head())
+
+Question Generation
+This function takes a list of user queries and generates the next candidate questions.
+
+question_generator = LocalQuestionGen(
+    llm=llm,
+    context_builder=context_builder,
+    token_encoder=token_encoder,
+    llm_params=llm_params,
+    context_builder_params=local_context_params,
+)
+
+question_history = [
+    "Tell me about Agent Mercer",
+    "What happens in Dulce military base?",
+]
+candidate_questions = await question_generator.agenerate(
+    question_history=question_history, context_data=None, question_count=5
+)
+print(candidate_questions.response)
